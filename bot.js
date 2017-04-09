@@ -6,14 +6,18 @@
 var Discord = require('discord.js');
 // Import the fs.js module
 var fs = require('fs');
+
+// Import module
+var yt = require('./modules/youtube.js');
+
 // Get credentials from credentials.json
 try {
     var credentials = require("./credentials.json");
 } catch (e) {
-    console.log(e.stack);
+    console.log("Could not find credentials.json");
     process.exit();
 }
-// create an instance of a Discord Client, and call it bot
+// Create an instance of a Discord Client, and call it bot
 var bot = new Discord.Client();
 // More information here http://stackoverflow.com/questions/19377262/regex-for-youtube-url
 var youtubeRegex = /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$/;
@@ -38,8 +42,7 @@ bot.on('ready', () => {
 bot.on('message', message => {
     var youtubeID = getYoutubeID(message.content);
     if (youtubeID !== false) {
-        console.log(youtubeID);
-        // addVideoToPlaylist(youtubeID);
+        yt.addVideoToPlaylist(youtubeID);
     }
 });
 
@@ -68,12 +71,10 @@ function checkNewMessages() {
                 console.log("first time visiting this channel");
                 addChannelToJson(key, value);
                 updateLastMessagesJSON();
-                // TODO fix readLogs
-                //readLogs(key);
+                readLogs(key);
             } else if (lastMessages[value].lastMessageID !== key.lastMessageID) {
                 console.log("new message since last visit");
-                // TODO fix readNewMessages
-                // readNewMessages(key, lastMessages[value].lastMessageID);
+                readNewMessages(key, lastMessages[value].lastMessageID);
                 lastMessages[value].lastMessageID = key.lastMessageID;
                 updateLastMessagesJSON();
             } else {
@@ -93,9 +94,7 @@ function addChannelToJson(key, value) {
     lastMessages[value] = elt;
 }
 
-// FIXME readLogs & readLogsRec
 function readLogs(channel) {
-    // TODO read all messages from channel
     var lastMessageID = channel.lastMessageID;
     channel.fetchMessages({
         limit: 50
@@ -103,44 +102,38 @@ function readLogs(channel) {
         messages.forEach(function(elt) {
             var youtubeID = getYoutubeID(elt.content);
             if (youtubeID !== false) {
-                console.log(channel.name + " " + youtubeID);
-                addVideoToPlaylist(youtubeID);
+                yt.addVideoToPlaylist(youtubeID);
             }
-            console.log("readLogs lastMessageID: " + elt.id);
             lastMessageID = elt.id;
         });
-    });
-    console.log("first lastMessageID " + lastMessageID);
-    while (lastMessageID !== 0) {
-        lastMessageID = readLogsRec(channel, lastMessageID);
-    }
+    }).catch(console.error);
+    readLogsRec(channel, lastMessageID);
 }
 
-// FIXME readLogs & readLogsRec
 function readLogsRec(channel, lastMessageID) {
     channel.fetchMessages({
         limit: 50,
         before: lastMessageID
     }).then(messages => {
         if (messages.size === 0) {
-            return 0;
+            console.log("Finished reading logs for channel: " + channel.name);
+            return;
         }
         messages.forEach(function(elt) {
             var youtubeID = getYoutubeID(elt.content);
             if (youtubeID !== false) {
-                console.log(channel.name + " " + youtubeID);
-                // addVideoToPlaylist(youtubeID);
+                yt.addVideoToPlaylist(youtubeID);
             }
             lastMessageID = elt.id;
         });
-        return lastMessageID;
+        return readLogsRec(channel, lastMessageID);
     }).catch(console.error);
 }
 
 // If message is a youtube link then returns the ID, if not returns false
 function getYoutubeID(message) {
     var match = message.match(youtubeRegex);
-    if (match !== null) {
+    if (match !== null && match[5].length === 11) {
         return match[5];
     }
     return false;
@@ -148,19 +141,23 @@ function getYoutubeID(message) {
 
 // Read every message since lastMessageID
 // If the message is a youtube link the video will be added to the playlist
-// FIXME will only work if there is 50 or less messages since lastMessageID
-//
 function readNewMessages(channel, lastMessageID) {
     channel.fetchMessages({
         after: lastMessageID
     }).then(messages => {
+        if (messages.size === 0) {
+            console.log("Finished reading new messages for channel: " + channel.name);
+            return;
+        }
         messages.forEach(function(elt) {
             var youtubeID = getYoutubeID(elt.content);
             if (youtubeID !== false) {
-                console.log(youtubeID);
-                // addVideoToPlaylist(youtubeID);
+                // console.log(youtubeID);
+                yt.addVideoToPlaylist(youtubeID);
             }
+            lastMessageID = elt.id;
         });
+        return readNewMessages(channel, lastMessageID);
     });
 }
 
