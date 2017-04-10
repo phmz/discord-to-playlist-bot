@@ -3,11 +3,21 @@
 var google = require('googleapis');
 var OAuth2 = google.auth.OAuth2;
 
+// Import winston logger & create logger
+var winston = require('winston');
+var logger = new(winston.Logger)({
+    transports: [
+        new(winston.transports.Console)(),
+        new(winston.transports.File)({
+            filename: './logs/bot_log.log'
+        })
+    ]
+});
 // Get credentials from credentials.json
 try {
     var credentials = require("../credentials.json");
 } catch (e) {
-    console.log("Could not find credentials.json");
+    logger.log("error", "YOUTUBE: Could not find credentials.json");
     process.exit();
 }
 
@@ -29,6 +39,7 @@ module.exports = {
     // Add the video with id in the playlist
     addVideoToPlaylist: function(videoID) {
         if (!credentials.playlist.id) {
+            logger.log("error", "YOUTUBE: no playlist in credentials.json");
             return;
         }
         youtube.playlistItems.insert({
@@ -44,9 +55,9 @@ module.exports = {
             }
         }, function(err, data) {
             if (err) {
-                console.log("Could not add " + videoID + ". Reason: " + err.errors[0].reason);
+                logger.log("error", "YOUTUBE: Could not add " + videoID + ". Reason: " + err.errors[0].reason);
             } else {
-                console.log(videoID + " correctly added to the playlist");
+                logger.log("info", "YOUTUBE: " + videoID + " correctly added to the playlist");
             }
         });
     }

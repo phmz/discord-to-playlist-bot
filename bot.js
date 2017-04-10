@@ -3,10 +3,23 @@
 */
 
 // Import the discord.js module
-var Discord = require('discord.js');
+var discord = require('discord.js');
 // Import the fs.js module
 var fs = require('fs');
-
+// Import winston logger & create logger
+var dir = './logs';
+if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir);
+}
+var winston = require('winston');
+var logger = new(winston.Logger)({
+    transports: [
+        new(winston.transports.Console)(),
+        new(winston.transports.File)({
+            filename: './logs/bot_log.log'
+        })
+    ]
+});
 // Import module
 var yt = require('./modules/youtube.js');
 
@@ -14,11 +27,11 @@ var yt = require('./modules/youtube.js');
 try {
     var credentials = require("./credentials.json");
 } catch (e) {
-    console.log("Could not find credentials.json");
+    logger.log("error", "BOT: Could not find credentials.json");
     process.exit();
 }
 // Create an instance of a Discord Client, and call it bot
-var bot = new Discord.Client();
+var bot = new discord.Client();
 // More information here http://stackoverflow.com/questions/19377262/regex-for-youtube-url
 var youtubeRegex = /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$/;
 // File containing the last messages ID for each channel
@@ -27,15 +40,14 @@ var lastMessagesPath = "./lastMessages.json";
 try {
     var lastMessages = require("./lastMessages.json");
 } catch (e) {
-    console.log("lastMessages does not exist");
+    logger.log("warn", "BOT: lastMessages does not exist");
     var lastMessages = {};
 }
 
 // the ready event is vital, it means that your bot will only start reacting to information
 // from Discord _after_ ready is emitted.
 bot.on('ready', () => {
-    console.log('Logged-in as ' + bot.user.username);
-    checkNewMessages();
+    logger.log("info", "BOT: Logged-in as " + bot.user.username);
 });
 
 // Create an event listener for message
@@ -50,35 +62,36 @@ bot.on('message', message => {
 if (credentials.discord.bot_token) {
     bot.login(credentials.discord.bot_token).then(loginSuccess).catch(loginErr);
 } else {
-    console.log("no discord token");
+    logger.log("error", "BOT: No discord token in credentials.json");
     process.exit();
 }
 
 function loginSuccess() {
-    console.log(bot.user.username + " is online");
+    logger.log("info", "BOT: " + bot.user.username + " is online");
+    checkNewMessages();
 }
 
 function loginErr(error) {
-    console.log(error);
+    logger.log("error", error);
+    process.exit();
 }
 
 // Allow the bot to update the playlist if needed
 function checkNewMessages() {
     bot.channels.forEach(function(key, value) {
         if (key.type === "text") {
-            console.log("channel: " + key.name);
             if (lastMessages[value] === undefined) {
-                console.log("first time visiting this channel");
+                logger.log("info", "BOT: First time visiting channel: " + key.name);
                 addChannelToJson(key, value);
-                updateLastMessagesJSON();
                 readLogs(key);
+                updateLastMessagesJSON();
             } else if (lastMessages[value].lastMessageID !== key.lastMessageID) {
-                console.log("new message since last visit");
+                logger.log("info", "BOT: New messages since last visit in channel: " + key.name);
                 readNewMessages(key, lastMessages[value].lastMessageID);
                 lastMessages[value].lastMessageID = key.lastMessageID;
                 updateLastMessagesJSON();
             } else {
-                console.log("no new message since last visit");
+                logger.log("info", "BOT: No new message since last visit in channel: " + key.name);
                 // do nothing for this channel
             }
         }
@@ -116,7 +129,7 @@ function readLogsRec(channel, lastMessageID) {
         before: lastMessageID
     }).then(messages => {
         if (messages.size === 0) {
-            console.log("Finished reading logs for channel: " + channel.name);
+            logger.log("info", "BOT: Finished reading logs for channel: " + channel.name);
             return;
         }
         messages.forEach(function(elt) {
@@ -146,13 +159,12 @@ function readNewMessages(channel, lastMessageID) {
         after: lastMessageID
     }).then(messages => {
         if (messages.size === 0) {
-            console.log("Finished reading new messages for channel: " + channel.name);
+            logger.log("info", "BOT: Finished reading logs for channel: " + channel.name);
             return;
         }
         messages.forEach(function(elt) {
             var youtubeID = getYoutubeID(elt.content);
             if (youtubeID !== false) {
-                // console.log(youtubeID);
                 yt.addVideoToPlaylist(youtubeID);
             }
             lastMessageID = elt.id;
@@ -165,8 +177,9 @@ function readNewMessages(channel, lastMessageID) {
 function updateLastMessagesJSON() {
     fs.writeFile(lastMessagesPath, JSON.stringify(lastMessages), function(err) {
         if (err) {
-            return console.log(err);
+            logger.log("error", err);
+            return;
         }
-        console.log("lastMessages.json updated");
+        logger.log("info", "BOT: lastMessages.json has been updated");
     });
 }

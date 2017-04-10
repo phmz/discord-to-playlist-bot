@@ -5,9 +5,10 @@
   "main": "bot.js",
   "dependencies": {
     "discord.js": "^11.0.0",
-    "googleapis": "^18.0.0"
+    "googleapis": "^18.0.0",
+    "winston": "^2.3.1"
   },
   "author": "phmz",
   "license": "",
-  "keywords":[]
+  "keywords": []
 }
