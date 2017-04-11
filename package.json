@@ -4,6 +4,7 @@
   "description": "Bot for Discord app that add youtube video linked in the server text channels to a playlist",
   "main": "bot.js",
   "dependencies": {
+    "async": "^2.3.0",
     "discord.js": "^11.0.0",
     "googleapis": "^18.0.0",
     "winston": "^2.3.1"

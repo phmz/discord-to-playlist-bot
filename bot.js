@@ -119,8 +119,8 @@ function readLogs(channel) {
             }
             lastMessageID = elt.id;
         });
+        readLogsRec(channel, lastMessageID);
     }).catch(console.error);
-    readLogsRec(channel, lastMessageID);
 }
 
 function readLogsRec(channel, lastMessageID) {

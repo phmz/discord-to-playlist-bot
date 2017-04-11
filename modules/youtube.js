@@ -13,6 +13,37 @@ var logger = new(winston.Logger)({
         })
     ]
 });
+
+// Import async and create a queue object with no concurrency in order to avoid
+// issue with Youtube API V3.0
+var async = require('async');
+var q = async.queue(function(task, callback) {
+    youtube.playlistItems.insert({
+        "part": 'snippet',
+        "resource": {
+            "snippet": {
+                "playlistId": credentials.playlist.id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": task.name
+                }
+            }
+        }
+    }, function(err, data) {
+        if (err) {
+            logger.log("error", "YOUTUBE: Could not add " + task.name + ". Reason: " + err.errors[0].reason);
+            callback();
+        } else {
+            logger.log("info", "YOUTUBE: " + task.name + " correctly added to the playlist");
+            callback();
+        }
+    });
+}, 1);
+// Callback
+q.drain = function() {
+    logger.log("debug", "YOUTUBE: All items have been processed")
+};
+
 // Get credentials from credentials.json
 try {
     var credentials = require("../credentials.json");
@@ -38,26 +69,11 @@ var youtube = google.youtube({
 module.exports = {
     // Add the video with id in the playlist
     addVideoToPlaylist: function(videoID) {
-        if (!credentials.playlist.id) {
-            logger.log("error", "YOUTUBE: no playlist in credentials.json");
-            return;
-        }
-        youtube.playlistItems.insert({
-            "part": 'snippet',
-            "resource": {
-                "snippet": {
-                    "playlistId": credentials.playlist.id,
-                    "resourceId": {
-                        "kind": "youtube#video",
-                        "videoId": videoID
-                    }
-                }
-            }
-        }, function(err, data) {
+        q.push({
+            name: videoID
+        }, function(err, result) {
             if (err) {
-                logger.log("error", "YOUTUBE: Could not add " + videoID + ". Reason: " + err.errors[0].reason);
-            } else {
-                logger.log("info", "YOUTUBE: " + videoID + " correctly added to the playlist");
+                return callback(err);
             }
         });
     }
